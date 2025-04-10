@@ -1,0 +1,72 @@
+<launch>
+    <!-- Arguments for camera serial numbers and marker details -->
+    <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i -->
+    <arg name="serial_no_cam2"    default="827112072033"/> <!-- D435 -->
+
+    <arg name="marker_size"       default="0.02"/> <!-- Marker size in meters (20mm = 0.02m) -->
+    <arg name="marker_id"         default="1"/>    <!-- Using ID 1 as requested -->
+    <arg name="marker_dict"       default="DICT_4X4_50"/> <!-- 4x4 dictionary as requested -->
+    
+    <!-- Frame IDs -->
+    <arg name="world_frame"      default="world"/>
+    <arg name="marker_frame_cam1" default="aruco_marker_cam1"/>
+    <arg name="marker_frame_cam2" default="aruco_marker_cam2"/>
+    <arg name="cam1_base_frame"   default="cam1_link"/>
+    <arg name="cam2_base_frame"   default="cam2_link"/>
+    <arg name="cam1_color_optical_frame" default="cam1_color_optical_frame"/>
+    <arg name="cam2_color_optical_frame" default="cam2_color_optical_frame"/>
+    <arg name="merged_topic" default="/merged_pointcloud"/>
+
+    <!-- === Camera 1 (D435i) === -->
+    <group ns="cam1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam1)"/>
+            <arg name="camera"              value="cam1"/> <!-- Namespace AND TF prefix -->
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+        </include>
+    </group>
+
+    <!-- === Camera 2 (D435) === -->
+    <group ns="cam2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam2)"/>
+            <arg name="camera"              value="cam2"/> <!-- Namespace AND TF prefix -->
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+       </include>
+    </group>
+
+    <!-- Dual Camera ArUco Detector - Both cameras looking at the same marker -->
+    <node name="dual_camera_aruco_detector" pkg="realsense_aruco_merger" type="dual_camera_aruco_detector.py" output="screen">
+        <param name="marker_size"         value="$(arg marker_size)"/>
+        <param name="marker_id"           value="$(arg marker_id)"/>
+        <param name="cam1_frame"          value="$(arg cam1_color_optical_frame)"/>
+        <param name="cam2_frame"          value="$(arg cam2_color_optical_frame)"/>
+        <param name="marker_frame_cam1"   value="$(arg marker_frame_cam1)" />
+        <param name="marker_frame_cam2"   value="$(arg marker_frame_cam2)" />
+        <param name="world_frame"         value="$(arg world_frame)" />
+        <param name="cam1_info_topic"     value="/cam1/cam1/color/camera_info" />
+        <param name="cam2_info_topic"     value="/cam2/cam2/color/camera_info" />
+        <param name="cam1_image_topic"    value="/cam1/cam1/color/image_raw" />
+        <param name="cam2_image_topic"    value="/cam2/cam2/color/image_raw" />
+        <remap from="cam1/aruco_result"   to="/cam1/aruco_result" />
+        <remap from="cam2/aruco_result"   to="/cam2/aruco_result" />
+    </node>
+
+    <!-- Point Cloud Merger Node - Using the transformation from the ArUco markers -->
+    <node name="aruco_pointcloud_merger" pkg="realsense_aruco_merger" type="aruco_pointcloud_merger.py" output="screen">
+        <param name="cam1_frame"         value="$(arg cam1_color_optical_frame)"/>
+        <param name="cam2_frame"         value="$(arg cam2_color_optical_frame)"/>
+        <param name="target_frame"       value="$(arg world_frame)"/> <!-- Reference frame for merged cloud -->
+        <param name="cam1_topic"         value="/cam1/cam1/depth/color/points"/>
+        <param name="cam2_topic"         value="/cam2/cam2/depth/color/points"/>
+        <param name="merged_topic"       value="$(arg merged_topic)"/>
+    </node>
+
+    <!-- === RViz Visualization === -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/dual_camera_merge.rviz" required="true" />
+
+</launch>

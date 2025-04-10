@@ -1,0 +1,92 @@
+<launch>
+
+    <!-- Arguments for camera serial numbers and marker details -->
+    <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i (Sees the marker) -->
+    <arg name="serial_no_cam2"    default="827112072033"/> <!-- D435 (Has marker attached) -->
+
+    <arg name="marker_size"       default="0.02"/> <!-- Marker size in meters (20mm = 0.02m) -->
+    <arg name="marker_id"         default="0"/>
+    <arg name="marker_dict"       default="DICT_4X4_50"/> <!-- 4x4 dictionary as requested -->
+    <arg name="marker_frame"      default="aruco_marker_frame"/>
+    <arg name="cam1_base_frame"   default="cam1_link"/>
+    <arg name="cam2_base_frame"   default="cam2_link"/>
+    <!-- Frame where the marker is detected (optical frame of cam1 color sensor) -->
+    <arg name="cam1_color_optical_frame" default="cam1_color_optical_frame"/>
+    <!-- Frame relative to which the marker is attached (e.g., optical frame of cam2 color sensor) -->
+    <arg name="cam2_attachment_frame" default="cam2_color_optical_frame"/>
+    <arg name="merged_topic" default="/merged_pointcloud"/>
+
+    <!-- === Camera 1 (D435i - Observer) === -->
+    <group ns="cam1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam1)"/>
+            <arg name="camera"              value="cam1"/> <!-- Namespace AND TF prefix -->
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+        </include>
+    </group>
+
+    <!-- === Camera 2 (D435 - Target) === -->
+    <group ns="cam2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam2)"/>
+            <arg name="camera"              value="cam2"/> <!-- Namespace AND TF prefix -->
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+       </include>
+    </group>
+
+    <!-- ArUco Marker Detection Node -->  
+    <node name="aruco_single" pkg="aruco_ros" type="single">
+        <!-- Input topics from Camera 1 -->
+        <remap from="/camera_info" to="/cam1/color/camera_info" />
+        <remap from="/image" to="/cam1/color/image_raw" />
+
+        <!-- Parameters -->
+        <param name="image_is_rectified" value="true"/>
+        <param name="marker_size"        value="$(arg marker_size)"/>
+        <param name="marker_id"          value="$(arg marker_id)"/>
+        <param name="reference_frame"    value="$(arg cam1_color_optical_frame)"/>
+        <param name="camera_frame"       value="$(arg cam1_color_optical_frame)"/>
+        <param name="marker_frame"       value="$(arg marker_frame)" />
+        <param name="dictionary"         value="$(arg marker_dict)"/>
+    </node>
+
+    <!-- ArUco TF Visualizer -->
+    <node name="aruco_tf_visualizer" pkg="realsense_aruco_merger" type="aruco_tf_visualizer.py" output="screen">
+        <param name="marker_frame"       value="$(arg marker_frame)"/>
+        <param name="marker_size"        value="$(arg marker_size)"/>
+    </node>
+    
+    <!-- === Static Transform: Marker -> Camera 2 === -->
+    <!-- Publishes the fixed transform from the detected marker frame to Camera 2's attachment frame -->
+    <!-- IMPORTANT: You MUST measure and adjust the 'args' values below! -->
+    <!-- x y z yaw pitch roll (in meters and radians) -->
+    <!-- Example: Marker is 5cm behind cam2's optical frame origin, facing opposite direction (180 deg Pitch rotation) -->
+    <node pkg="tf2_ros" type="static_transform_publisher" name="marker_to_cam2_tf"
+          args="0 0 -0.05 0 3.14159 0 $(arg marker_frame) $(arg cam2_attachment_frame)" />
+          <!-- Adjust X Y Z Roll Pitch Yaw based on how the marker is physically attached to Camera 2 -->
+          <!-- X: Forward from marker center to cam2 frame center -->
+          <!-- Y: Left from marker center to cam2 frame center -->
+          <!-- Z: Up from marker center to cam2 frame center -->
+          <!-- Roll: Rotation around X -->
+          <!-- Pitch: Rotation around Y -->
+          <!-- Yaw: Rotation around Z -->
+          <!-- Remember: This defines cam2_attachment_frame's pose *relative* to marker_frame -->
+
+    <!-- Point Cloud Merger Node -->
+    <node name="pointcloud_merger" pkg="realsense_aruco_merger" type="pointcloud_merger.py" output="screen">
+        <param name="cam1_frame"         value="$(arg cam1_base_frame)"/>
+        <param name="cam2_frame"         value="$(arg cam2_base_frame)"/>
+        <param name="target_frame"       value="$(arg cam1_base_frame)"/> <!-- Reference frame for merged cloud -->
+        <param name="cam1_topic"         value="/cam1/depth/color/points"/>
+        <param name="cam2_topic"         value="/cam2/depth/color/points"/>
+        <param name="merged_topic"       value="$(arg merged_topic)"/>
+    </node>
+
+    <!-- === RViz Visualization === -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/merge_config.rviz" required="true" />
+
+</launch>

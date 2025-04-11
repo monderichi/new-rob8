@@ -1,0 +1,95 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Arguments -->
+  <arg name="world_name" default="$(find dual_camera_simulation)/worlds/test_world.world"/>
+  <arg name="paused" default="false"/>
+  <arg name="use_sim_time" default="true"/>
+  <arg name="gui" default="false"/>  <!-- Set to false for headless Docker -->
+  <arg name="headless" default="true"/>  <!-- Set to true for Docker -->
+  <arg name="debug" default="false"/>
+  <arg name="rviz" default="false"/>  <!-- Set to false for headless Docker -->
+  <arg name="rviz_config" default="$(find dual_camera_simulation)/rviz/dual_camera_view.rviz"/>
+
+  <!-- Start Gazebo with the specified world -->
+  <include file="$(find gazebo_ros)/launch/empty_world.launch">
+    <arg name="world_name" value="$(arg world_name)"/>
+    <arg name="paused" value="$(arg paused)"/>
+    <arg name="use_sim_time" value="$(arg use_sim_time)"/>
+    <arg name="gui" value="$(arg gui)"/>
+    <arg name="headless" value="$(arg headless)"/>
+    <arg name="debug" value="$(arg debug)"/>
+  </include>
+
+  <!-- Load the camera parameters -->
+  <rosparam command="load" file="$(find dual_camera_simulation)/config/camera1_params.yaml" />
+  <rosparam command="load" file="$(find dual_camera_simulation)/config/camera2_params.yaml" />
+  <rosparam command="load" file="$(find dual_camera_simulation)/config/aruco_detector_params.yaml" />
+
+  <!-- Load the URDF model into the parameter server -->
+  <param name="robot_description" command="$(find xacro)/xacro '$(find dual_camera_simulation)/models/dual_camera_setup.urdf.xacro'" />
+
+  <!-- Spawn the dual camera model in Gazebo -->
+  <node name="spawn_dual_camera_model" pkg="gazebo_ros" type="spawn_model" 
+        args="-urdf -param robot_description -model dual_camera_setup -z 0.5" 
+        output="screen" />
+
+  <!-- Start the robot state publisher to publish TF -->
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher"/>
+
+  <!-- ArUco detector parameters (hardcoded to avoid YAML loading issues) -->
+  <arg name="marker_size" default="0.05"/>
+  <arg name="marker_id" default="23"/>
+  <arg name="reference_frame" default="camera1_link"/>
+  <arg name="camera_frame" default="camera1_rgb_optical_frame"/>
+  <arg name="image_is_rectified" default="true"/>
+
+  <!-- Launch the ArUco marker detector -->
+  <node pkg="aruco_ros" type="single" name="aruco_detector">
+    <remap from="/camera_info" to="/camera1/rgb/camera_info" />
+    <remap from="/image" to="/camera1/rgb/image_raw" />
+    <param name="image_is_rectified" value="$(arg image_is_rectified)"/>
+    <param name="marker_size" value="$(arg marker_size)"/>
+    <param name="marker_id" value="$(arg marker_id)"/>
+    <param name="reference_frame" value="$(arg reference_frame)"/>
+    <param name="camera_frame" value="$(arg camera_frame)"/>
+    <param name="marker_frame" value="aruco_marker_$(arg marker_id)"/>
+    <param name="corner_refinement" value="LINES"/>
+  </node>
+
+  <!-- Launch the camera calibration node -->
+  <node pkg="dual_camera_simulation" type="camera_calibration_node" name="camera_calibration" 
+        output="screen">
+    <param name="camera1_frame" value="camera1_link"/>
+    <param name="camera2_frame" value="camera2_link"/>
+    <param name="marker_frame" value="aruco_marker_$(arg marker_id)"/>
+    <param name="publish_rate" value="10.0"/>
+  </node>
+
+  <!-- Launch the point cloud filter nodes for each camera -->
+  <node pkg="dual_camera_simulation" type="point_cloud_filter_node" name="camera1_point_cloud_filter"
+        output="screen">
+    <param name="camera_name" value="camera1"/>
+    <param name="input_cloud" value="/camera1/depth/points"/>
+    <param name="output_cloud" value="/camera1/depth/filtered_points"/>
+  </node>
+
+  <node pkg="dual_camera_simulation" type="point_cloud_filter_node" name="camera2_point_cloud_filter"
+        output="screen">
+    <param name="camera_name" value="camera2"/>
+    <param name="input_cloud" value="/camera2/depth/points"/>
+    <param name="output_cloud" value="/camera2/depth/filtered_points"/>
+  </node>
+
+  <!-- Launch the point cloud merger node -->
+  <node pkg="dual_camera_simulation" type="point_cloud_merger_node" name="point_cloud_merger"
+        output="screen">
+    <param name="input_cloud1" value="/camera1/depth/filtered_points"/>
+    <param name="input_cloud2" value="/camera2/depth/filtered_points"/>
+    <param name="output_cloud" value="/merged_point_cloud"/>
+    <param name="target_frame" value="base_link"/>
+    <param name="publish_rate" value="10.0"/>
+  </node>
+
+  <!-- Launch RViz if requested -->
+  <node if="$(arg rviz)" name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)" required="true" />
+</launch>

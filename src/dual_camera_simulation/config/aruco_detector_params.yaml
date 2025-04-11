@@ -1,0 +1,6 @@
+aruco_detector:
+  marker_id: 23
+  marker_size: 0.05  # 5cm
+  image_is_rectified: true
+  reference_frame: "camera1_link"
+  camera_frame: "camera1_rgb_optical_frame"

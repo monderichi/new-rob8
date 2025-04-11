@@ -1,0 +1,18 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Load ArUco detection parameters -->
+  <rosparam command="load" file="$(find dual_camera_simulation)/config/aruco_detector_params.yaml" />
+
+  <!-- ArUco marker detection node -->
+  <node pkg="aruco_ros" type="single" name="aruco_detector">
+    <remap from="/camera_info" to="/camera1/rgb/camera_info" />
+    <remap from="/image" to="/camera1/rgb/image_rect_color" />
+    <param name="marker_id" value="23" />
+    <param name="marker_size" value="0.05" />  <!-- Size in meters -->
+    <param name="reference_frame" value="camera1_link" />
+    <param name="camera_frame" value="camera1_rgb_optical_frame" />
+    <param name="image_is_rectified" value="true" />
+    <param name="publish_tf" value="true" />
+    <param name="show_markers" value="true" />
+  </node>
+</launch>

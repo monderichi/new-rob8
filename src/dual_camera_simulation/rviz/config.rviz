@@ -1,0 +1,156 @@
+Fixed Frame: camera1_depth_optical_frame
+Global Options:
+  Background Color: 48 48 48
+  Fixed Frame: camera1_depth_optical_frame
+  Frame Rate: 30
+  Orientation: Up
+  Target Frame: camera1_depth_optical_frame
+  Use Fixed Frame: true
+  Value Color: 204 204 204
+  Visual Scale Factor: 1
+  Visualisation Time Offset: 0
+Panels:
+  - Class: rviz/Displays
+    Displays:
+      - Alpha: 1
+        Cell Size: 1
+        Class: rviz/Grid
+        Color: 160 160 160
+        Enabled: true
+        Line Style: Line
+        Line Width: 0.03
+        Name: Grid
+        Normal Cell Count: 0
+        Offset:
+          X: 0
+          Y: 0
+          Z: 0
+        Plane: XY
+        Plane Cell Count: 10
+        Render QueueGroup: 1
+        Value Color: 0 0 0
+      - Angle Tolerance: 0.1
+        Axes Length: 0.1
+        Axes Radius: 0.01
+        Class: rviz/TF
+        Color: 255 255 0
+        Enabled: true
+        Frame Timeout: 15
+        Marker Scale: 1
+        Name: TF
+        Show Arrows: true
+        Show Axes: true
+        Show Names: true
+        Show Trails: false
+        Trail Color: 127 127 0
+        Trail Duration: 5
+        Update Interval: 0
+      - Alpha: 1
+        Autocompute Intensity Bounds: false
+        Autocompute Value Bounds: false
+        Axis: Z
+        Channel Name: intensity
+        Class: rviz/PointCloud2
+        Color: 255 255 255
+        Color Transformer: Intensity
+        Decay Time: 0
+        Enabled: true
+        Invert Rainbow: false
+        Max Color: 1
+        Max Intensity: 4096
+        Min Color: 0
+        Min Intensity: 0
+        Name: Camera 1 Points
+        Position Transformer: XYZ
+        Queue Size: 10
+        Remap Size: 1
+        Selectable: true
+        Size (Pixels): 3
+        Style: Flat Squares
+        Topic: /camera1/points
+        Use Fixed Frame: true
+        Use rainbow: true
+      - Alpha: 1
+        Autocompute Intensity Bounds: false
+        Autocompute Value Bounds: false
+        Axis: Z
+        Channel Name: intensity
+        Class: rviz/PointCloud2
+        Color: 255 255 255
+        Color Transformer: Intensity
+        Decay Time: 0
+        Enabled: true
+        Invert Rainbow: false
+        Max Color: 1
+        Max Intensity: 4096
+        Min Color: 0
+        Min Intensity: 0
+        Name: Camera 2 Points
+        Position Transformer: XYZ
+        Queue Size: 10
+        Remap Size: 1
+        Selectable: true
+        Size (Pixels): 3
+        Style: Flat Squares
+        Topic: /camera2/points
+        Use Fixed Frame: true
+        Use rainbow: true
+      - Alpha: 1
+        Autocompute Intensity Bounds: false
+        Autocompute Value Bounds: false
+        Axis: Z
+        Channel Name: intensity
+        Class: rviz/PointCloud2
+        Color: 255 255 255
+        Color Transformer: Intensity
+        Decay Time: 0
+        Enabled: true
+        Invert Rainbow: false
+        Max Color: 1
+        Max Intensity: 4096
+        Min Color: 0
+        Min Intensity: 0
+        Name: Merged Points
+        Position Transformer: XYZ
+        Queue Size: 10
+        Remap Size: 1
+        Selectable: true
+        Size (Pixels): 3
+        Style: Flat Squares
+        Topic: /merged_points
+        Use Fixed Frame: true
+        Use rainbow: true
+      - Class: rviz/Image
+        Topic: /camera1/image_color
+        Name: Camera 1 Image
+        Enabled: true
+        Alpha: 1
+        Queue Size: 10
+        Transport Hint: raw
+      - Class: rviz/Image
+        Topic: /camera2/image_color
+        Name: Camera 2 Image
+        Enabled: true
+        Alpha: 1
+        Queue Size: 10
+        Transport Hint: raw
+    Name: Displays
+  - Class: rviz/Tool Properties
+    Expand: false
+    Name: Interaction
+  - Class: rviz/Views
+    Current:
+      Class: rviz/Orbit
+      Distance: 2
+      Enable Stereo Rendering: false
+      Name: Current View
+      Near Clip Distance: 0.01
+      Pitch: 0.4
+      Target Frame: camera1_depth_optical_frame
+      Value: Orbit (rviz)
+      Yaw: 0.5
+    Name: Views
+  - Class: rviz/Selection
+    Name: Selection
+  - Class: rviz/Focus
+    Name: Focus

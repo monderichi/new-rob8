@@ -1,0 +1,8 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Arguments -->
+  <arg name="rviz_config" default="$(find dual_camera_simulation)/rviz/dual_camera_view.rviz"/>
+
+  <!-- Launch RViz with the specified config -->
+  <node name="rviz" pkg="rviz" type="rviz" args="-d $(arg rviz_config)" required="true" />
+</launch>

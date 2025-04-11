@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+  <!-- Point cloud merger node -->
+  <node pkg="dual_camera_simulation" type="point_cloud_merger_node" name="point_cloud_merger" output="screen">
+    <param name="input_cloud1" value="/camera1/depth/filtered_points" />
+    <param name="input_cloud2" value="/camera2/depth/filtered_points" />
+    <param name="output_cloud" value="/merged_point_cloud" />
+    <param name="target_frame" value="base_link" />
+    <param name="publish_rate" value="10.0" /> <!-- Publishing rate in Hz -->
+  </node>
+</launch>

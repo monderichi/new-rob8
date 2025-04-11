@@ -1,0 +1,21 @@
+camera1:
+  # Camera dimensions
+  width: 640
+  height: 480
+
+  # Camera intrinsics
+  fx: 554.254691191187
+  fy: 554.254691191187
+  cx: 320.5
+  cy: 240.5
+
+  # Depth range
+  min_depth: 0.1
+  max_depth: 3.0
+
+  # Point cloud filtering
+  voxel_size: 0.01
+  passthrough_min: 0.1
+  passthrough_max: 3.0
+  outlier_mean_k: 50
+  outlier_std_dev: 1.0

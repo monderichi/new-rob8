@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<launch>
+    <!-- Parameters for the alignment debugger -->
+    <arg name="cam1_frame" default="cam1_color_optical_frame" />
+    <arg name="cam2_frame" default="cam2_color_optical_frame" />
+    <arg name="world_frame" default="world" />
+    
+    <!-- Launch the alignment debugger node -->
+    <node pkg="realsense_aruco_merger" type="alignment_debugger.py" name="alignment_debugger" output="screen">
+        <param name="cam1_frame" value="$(arg cam1_frame)" />
+        <param name="cam2_frame" value="$(arg cam2_frame)" />
+        <param name="world_frame" value="$(arg world_frame)" />
+    </node>
+    
+    <!-- Optional: Launch RViz with a configuration for debugging -->
+    <arg name="rviz" default="true" />
+    <group if="$(arg rviz)">
+        <node pkg="rviz" type="rviz" name="rviz_alignment_debug" 
+              args="-d $(find realsense_aruco_merger)/rviz/alignment_debug.rviz" 
+              respawn="false" if="$(arg rviz)" />
+    </group>
+</launch>

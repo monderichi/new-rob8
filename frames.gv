@@ -1,0 +1,20 @@
+digraph G {
+"cam1_link" -> "cam1_depth_frame"[label="Broadcaster: /cam1/cam1/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam1_depth_frame" -> "cam1_depth_optical_frame"[label="Broadcaster: /cam1/cam1/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam1_link" -> "cam1_color_frame"[label="Broadcaster: /cam1/cam1/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam1_aligned_depth_to_color_frame" -> "cam1_color_optical_frame"[label="Broadcaster: /cam1/cam1/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam1_link" -> "cam1_aligned_depth_to_color_frame"[label="Broadcaster: /cam1/cam1/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam2_link" -> "cam2_depth_frame"[label="Broadcaster: /cam2/cam2/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam2_depth_frame" -> "cam2_depth_optical_frame"[label="Broadcaster: /cam2/cam2/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam2_link" -> "cam2_color_frame"[label="Broadcaster: /cam2/cam2/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam2_aligned_depth_to_color_frame" -> "cam2_color_optical_frame"[label="Broadcaster: /cam2/cam2/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+"cam2_link" -> "cam2_aligned_depth_to_color_frame"[label="Broadcaster: /cam2/cam2/realsense2_camera_manager\nAverage rate: 10000.000 Hz\nMost recent transform: 0.000 ( 1744313410.696 sec old)\nBuffer length: 0.000 sec\n"];
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1744313410.696"[ shape=plaintext ] ;
+ }->"cam1_link";
+edge [style=invis];
+ subgraph cluster_legend { style=bold; color=black; label ="view_frames Result";
+"Recorded at time: 1744313410.696"[ shape=plaintext ] ;
+ }->"cam2_link";
+}

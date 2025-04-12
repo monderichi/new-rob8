@@ -3,7 +3,7 @@
     <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i -->
     <arg name="serial_no_cam2"    default="827112072033"/> <!-- D435 -->
 
-    <arg name="marker_size"       default="0.02"/> <!-- Marker size in meters (20mm = 0.02m) -->
+    <arg name="marker_size"       default="0.03"/> <!-- Marker size in meters (30mm = 0.03m) -->
     <arg name="marker_id"         default="1"/>    <!-- Using ID 1 as requested -->
     <arg name="marker_dict"       default="DICT_4X4_50"/> <!-- 4x4 dictionary as requested -->
     
@@ -17,6 +17,17 @@
     <arg name="cam2_color_optical_frame" default="cam2_color_optical_frame"/>
     <arg name="merged_topic" default="/merged_pointcloud"/>
 
+    <!-- Performance optimization parameters -->
+    <arg name="color_width"       default="640"/>  <!-- Reduced from default 1280 -->
+    <arg name="color_height"      default="480"/>  <!-- Reduced from default 720 -->
+    <arg name="depth_width"       default="640"/>  <!-- Reduced from default 1280 -->
+    <arg name="depth_height"      default="480"/>  <!-- Reduced from default 720 -->
+    <arg name="color_fps"         default="15"/>   <!-- Reduced from default 30 -->
+    <arg name="depth_fps"         default="15"/>   <!-- Reduced from default 30 -->
+    <arg name="filters"           default="pointcloud"/>  <!-- Only use pointcloud filter -->
+    <arg name="pointcloud_texture_stream" default="RS2_STREAM_COLOR"/> <!-- Explicitly set texture stream -->
+    <arg name="pc_texture_index"  default="0"/> <!-- Use index 0 for texture -->
+
     <!-- === Camera 1 (D435i) === -->
     <group ns="cam1">
         <include file="$(find realsense2_camera)/launch/rs_camera.launch">
@@ -25,6 +36,18 @@
             <arg name="enable_pointcloud"   value="true"/>
             <arg name="enable_sync"         value="true"/>
             <arg name="align_depth"         value="true"/>
+            
+            <!-- Performance optimization settings -->
+            <arg name="color_width"         value="$(arg color_width)"/>
+            <arg name="color_height"        value="$(arg color_height)"/>
+            <arg name="depth_width"         value="$(arg depth_width)"/>
+            <arg name="depth_height"        value="$(arg depth_height)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+            <arg name="filters"             value="$(arg filters)"/>
+            <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/>
+            <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/>
+            <arg name="allow_no_texture_points" value="true"/> <!-- Allow points without texture -->
         </include>
     </group>
 
@@ -36,6 +59,18 @@
             <arg name="enable_pointcloud"   value="true"/>
             <arg name="enable_sync"         value="true"/>
             <arg name="align_depth"         value="true"/>
+            
+            <!-- Performance optimization settings -->
+            <arg name="color_width"         value="$(arg color_width)"/>
+            <arg name="color_height"        value="$(arg color_height)"/>
+            <arg name="depth_width"         value="$(arg depth_width)"/>
+            <arg name="depth_height"        value="$(arg depth_height)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+            <arg name="filters"             value="$(arg filters)"/>
+            <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/>
+            <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/>
+            <arg name="allow_no_texture_points" value="true"/> <!-- Allow points without texture -->
        </include>
     </group>
 
@@ -66,7 +101,7 @@
         <param name="merged_topic"       value="$(arg merged_topic)"/>
     </node>
 
-    <!-- === RViz Visualization === -->
-    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/dual_camera_merge.rviz" required="true" />
+    <!-- === RViz Visualization with Optimized Settings === -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/dual_camera_merge_optimized.rviz" required="true" />
 
 </launch>

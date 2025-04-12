@@ -12,6 +12,7 @@ from geometry_msgs.msg import PoseStamped, TransformStamped
 from visualization_msgs.msg import Marker
 from std_msgs.msg import Header
 import tf.transformations
+import math
 
 class DualCameraArucoDetector:
     def __init__(self):
@@ -280,33 +281,45 @@ class DualCameraArucoDetector:
         marker2 = markers_data2[0]  # Only use the first detected marker
         
         try:
-            # Get the transformation from camera1 to marker
+            # Get the transformation from marker frame to camera1 frame
             t1 = np.array(marker1['position_3d'])
             R1 = marker1['rotation_matrix']
+            T1 = np.eye(4)  # Homogeneous transformation matrix: marker -> cam1
+            T1[:3, :3] = R1
+            T1[:3, 3] = t1
             
-            # Get the transformation from camera2 to marker
+            # Get the transformation from marker frame to camera2 frame
             t2 = np.array(marker2['position_3d'])
             R2 = marker2['rotation_matrix']
+            T2 = np.eye(4)  # Homogeneous transformation matrix: marker -> cam2
+            T2[:3, :3] = R2
+            T2[:3, 3] = t2
             
-            # Calculate the transformation from camera1 to camera2
-            # R2^-1 * R1 is the rotation from camera1 to camera2
-            # -R2^-1 * t2 + R2^-1 * R1 * t1 is the translation from camera1 to camera2
-            R2_inv = np.linalg.inv(R2)
-            R_cam1_to_cam2 = np.matmul(R2_inv, R1)
-            t_cam1_to_cam2 = np.matmul(-R2_inv, t2) + np.matmul(np.matmul(R2_inv, R1), t1)
+            # Calculate the transformation from camera2 frame to camera1 frame
+            T2_inv = np.linalg.inv(T2) # Transform: cam2 -> marker
+            T_cam1_to_cam2 = np.matmul(T1, T2_inv) # Transform: cam2 -> cam1
+            
+            # Extract rotation matrix and translation vector for cam1 <- cam2
+            R_cam1_to_cam2 = T_cam1_to_cam2[:3, :3]
+            t_cam1_to_cam2 = T_cam1_to_cam2[:3, 3]
             
             # Convert rotation matrix to quaternion
-            rot_mat = np.eye(4)
-            rot_mat[:3, :3] = R_cam1_to_cam2
-            q = tf.transformations.quaternion_from_matrix(rot_mat)
+            rot_mat_4x4 = np.eye(4)
+            rot_mat_4x4[:3, :3] = R_cam1_to_cam2
+            q = tf.transformations.quaternion_from_matrix(rot_mat_4x4)
             
-            # Publish the transformation as a TF
+            # Calculate and log Euler angles for easier understanding of orientation
+            euler_angles = tf.transformations.euler_from_matrix(rot_mat_4x4, 'sxyz')
+            euler_degrees = [math.degrees(angle) for angle in euler_angles]
+            rospy.loginfo_throttle(1.0, f"Calculated TFs: Cam1 <- Cam2 Euler (deg): [{euler_degrees[0]:.2f}, {euler_degrees[1]:.2f}, {euler_degrees[2]:.2f}]")
+            
+            # Publish the transformation as a TF: cam1_frame -> cam2_frame
             transform = TransformStamped()
-            transform.header.stamp = rospy.Time.now()
-            transform.header.frame_id = self.cam1_frame
-            transform.child_frame_id = self.cam2_frame
+            transform.header.stamp = rospy.Time.now() # Use current time for dynamic transform
+            transform.header.frame_id = self.cam1_frame # Parent frame
+            transform.child_frame_id = self.cam2_frame  # Child frame
             
-            # Apply the calculated transformation
+            # Apply the calculated transformation T_cam1_to_cam2
             transform.transform.translation.x = float(t_cam1_to_cam2[0])
             transform.transform.translation.y = float(t_cam1_to_cam2[1])
             transform.transform.translation.z = float(t_cam1_to_cam2[2])
@@ -315,20 +328,29 @@ class DualCameraArucoDetector:
             transform.transform.rotation.z = q[2]
             transform.transform.rotation.w = q[3]
             
-            # Publish the transformation
+            # Publish the dynamic transformation
             self.tf_broadcaster.sendTransform(transform)
-            self.camera_transformation_pub.publish(transform)
+            self.camera_transformation_pub.publish(transform) 
             
-            # Also publish a world frame with origin at camera1
+            # Publish a static identity transform to define world = cam1_frame
             world_transform = TransformStamped()
-            world_transform.header.stamp = rospy.Time.now()
-            world_transform.header.frame_id = self.world_frame
-            world_transform.child_frame_id = self.cam1_frame
-            world_transform.transform.rotation.w = 1.0
-            self.tf_broadcaster.sendTransform(world_transform)
+            world_transform.header.stamp = rospy.Time.now() # Stamp needed even for static
+            world_transform.header.frame_id = self.cam1_frame
+            world_transform.child_frame_id = self.world_frame
+            world_transform.transform.rotation.w = 1.0 # Identity rotation
+            self.tf_broadcaster.sendTransform(world_transform) 
+
+            # Log transformation details for debugging
+            t_x, t_y, t_z = float(t_cam1_to_cam2[0]), float(t_cam1_to_cam2[1]), float(t_cam1_to_cam2[2])
+            distance = np.sqrt(t_x**2 + t_y**2 + t_z**2)
+            rospy.loginfo_throttle(5.0, f"Published TF: {self.cam1_frame} -> {self.cam2_frame}, translation=[{t_x:.4f}, {t_y:.4f}, {t_z:.4f}]m, distance={distance:.4f}m")
             
+        except np.linalg.LinAlgError as e:
+            rospy.logerr_throttle(5.0, f"Error calculating camera transformation: Matrix inversion failed. {e}")
         except Exception as e:
             rospy.logerr(f"Error calculating camera transformation: {e}")
+            import traceback
+            traceback.print_exc()
         
     def display_marker_info(self, color_image, markers_data, camera_matrix, dist_coeffs):
         """Draw detected markers and information on the image"""

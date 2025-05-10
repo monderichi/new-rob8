@@ -1,0 +1,164 @@
+<launch>
+    <!-- ===================================================================================== -->
+    <!-- == Calibration Launch File to find TF from cam1 (D435i) to marker_0 (behind D405) == -->
+    <!-- ===================================================================================== -->
+
+    <!-- === Arguments === -->
+    <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i -->
+    <arg name="serial_no_cam2"    default="218622278356"/> <!-- D405 -->
+
+    <!-- Marker 1 (Visible to both cameras) -->
+    <arg name="marker_size_1"     default="0.03"/> <!-- 30mm -->
+    <arg name="marker_id_1"       default="1"/>   
+    <arg name="marker_dict_1"     default="DICT_4X4_50"/> 
+
+    <!-- Marker 0 (Visible to cam1, behind cam2) -->
+    <arg name="marker_size_0"     default="0.03"/> <!-- 30mm -->
+    <arg name="marker_id_0"       default="0"/>   
+    <arg name="marker_dict_0"     default="DICT_4X4_50"/> 
+
+    <!-- Frame IDs -->
+    <arg name="world_frame"      default="world"/> <!-- Not strictly needed for calibration, but detector uses it -->
+    <arg name="cam1_base_frame"   default="cam1_link"/>
+    <arg name="cam2_base_frame"   default="cam2_link"/>
+    <arg name="cam1_color_optical_frame" default="cam1_color_optical_frame"/>
+    <arg name="cam2_color_optical_frame" default="cam2_color_optical_frame"/>
+
+    <!-- Unique Marker Frame Names -->
+    <arg name="marker_frame_cam1_m1" default="aruco_marker_cam1_m1"/> <!-- Marker 1 seen by Cam 1 -->
+    <arg name="marker_frame_cam2_m1" default="aruco_marker_cam2_m1"/> <!-- Marker 1 seen by Cam 2 -->
+    <arg name="marker_frame_cam1_m0" default="aruco_marker_cam1_m0"/> <!-- Marker 0 seen by Cam 1 -->
+    <arg name="marker_frame_cam2_m0" default="aruco_marker_cam2_m0"/> <!-- Marker 0 seen by Cam 2 (unused but needs name) -->
+
+    <!-- Performance optimization parameters (copied from dual_camera_aruco_merge.launch) -->
+    <arg name="color_width"       default="640"/> 
+    <arg name="color_height"      default="480"/> 
+    <arg name="depth_width"       default="640"/> 
+    <arg name="depth_height"      default="480"/> 
+    <arg name="color_fps"         default="15"/>  
+    <arg name="depth_fps"         default="15"/>  
+    <arg name="filters"           default="pointcloud"/> 
+    <arg name="pointcloud_texture_stream" default="RS2_STREAM_COLOR"/>
+    <arg name="pc_texture_index"  default="0"/>
+
+    <!-- === Camera 1 (D435i) === -->
+    <group ns="cam1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam1)"/>
+            <arg name="camera"              value="cam1"/> 
+            <arg name="enable_pointcloud"   value="false"/> <!-- Disable pointcloud for calibration -->
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+            <arg name="color_width"         value="$(arg color_width)"/>
+            <arg name="color_height"        value="$(arg color_height)"/>
+            <arg name="depth_width"         value="$(arg depth_width)"/>
+            <arg name="depth_height"        value="$(arg depth_height)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+            <!-- <arg name="filters"             value="$(arg filters)"/> --> <!-- No pointcloud filter needed -->
+            <!-- <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/> -->
+            <!-- <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/> -->
+            <arg name="allow_no_texture_points" value="true"/> 
+        </include>
+    </group>
+
+    <!-- === Camera 2 (D405) === -->
+    <group ns="cam2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam2)"/>
+            <arg name="camera"              value="cam2"/> 
+            <arg name="clip_distance"       value="0.5"/> <!-- Add this line -->
+            <arg name="enable_pointcloud"   value="false"/> <!-- Disable pointcloud for calibration -->
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+            <!-- Use higher res for D405 color potentially? -->
+            <arg name="color_width"         value="1280"/> 
+            <arg name="color_height"        value="720"/>  
+            <arg name="depth_width"         value="1280"/> 
+            <arg name="depth_height"        value="720"/>  
+            <arg name="color_fps"           value="$(arg color_fps)"/> 
+            <arg name="depth_fps"           value="$(arg depth_fps)"/> 
+            <!-- <arg name="filters"             value="$(arg filters)"/> -->
+            <!-- <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/> -->
+            <!-- <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/> -->
+            <arg name="allow_no_texture_points" value="true"/> 
+       </include>
+    </group>
+
+    <!-- === ArUco Detector Instance for Marker ID 1 === -->
+    <node name="detector_marker1" pkg="realsense_aruco_merger" type="dual_camera_aruco_detector_node" output="screen">
+        <param name="marker_size"         value="$(arg marker_size_1)"/>
+        <param name="marker_id"           value="$(arg marker_id_1)"/>
+        <param name="marker_dictionary"   value="$(arg marker_dict_1)"/> <!-- Add dictionary param -->
+        <param name="cam1_frame"          value="$(arg cam1_color_optical_frame)"/>
+        <param name="cam2_frame"          value="$(arg cam2_color_optical_frame)"/>
+        <param name="marker_frame_cam1"   value="$(arg marker_frame_cam1_m1)" /> <!-- Unique name -->
+        <param name="marker_frame_cam2"   value="$(arg marker_frame_cam2_m1)" /> <!-- Unique name -->
+        <param name="world_frame"         value="$(arg world_frame)" />
+        <param name="cam1_info_topic"     value="/cam1/cam1/color/camera_info" />
+        <param name="cam2_info_topic"     value="/cam2/cam2/color/camera_info" />
+        <param name="cam1_image_topic"    value="/cam1/cam1/color/image_raw" />
+        <param name="cam2_image_topic"    value="/cam2/cam2/color/image_raw" />
+        <param name="publish_debug_images" value="true" />
+        <param name="publish_tf_marker"   value="true" /> <!-- Publish cam -> marker TF -->
+        <param name="publish_tf_cam1_cam2" value="false" /> <!-- Disable direct cam1->cam2 TF publishing -->
+        <param name="publish_viz_marker"  value="true" />
+        <!-- Remap debug topics to avoid conflicts -->
+        <remap from="cam1/aruco_result"   to="/cam1/aruco_result_m1" />
+        <remap from="cam2/aruco_result"   to="/cam2/aruco_result_m1" />
+        <remap from="debug_image_cam1"    to="/debug_image_cam1_m1" />
+        <remap from="debug_image_cam2"    to="/debug_image_cam2_m1" />
+        <remap from="visualization_marker" to="/visualization_marker_m1" />
+    </node>
+
+    <!-- === ArUco Detector Instance for Marker ID 0 === -->
+    <node name="detector_marker0" pkg="realsense_aruco_merger" type="dual_camera_aruco_detector_node" output="screen">
+        <param name="marker_size"         value="$(arg marker_size_0)"/>
+        <param name="marker_id"           value="$(arg marker_id_0)"/>
+        <param name="marker_dictionary"   value="$(arg marker_dict_0)"/> <!-- Add dictionary param -->
+        <param name="cam1_frame"          value="$(arg cam1_color_optical_frame)"/>
+        <param name="cam2_frame"          value="$(arg cam2_color_optical_frame)"/>
+        <param name="marker_frame_cam1"   value="$(arg marker_frame_cam1_m0)" /> <!-- Unique name -->
+        <param name="marker_frame_cam2"   value="$(arg marker_frame_cam2_m0)" /> <!-- Unique name (unused) -->
+        <param name="world_frame"         value="$(arg world_frame)" />
+        <param name="cam1_info_topic"     value="/cam1/cam1/color/camera_info" />
+        <param name="cam2_info_topic"     value="/cam2/cam2/color/camera_info" />
+        <param name="cam1_image_topic"    value="/cam1/cam1/color/image_raw" />
+        <param name="cam2_image_topic"    value="/cam2/cam2/color/image_raw" />
+        <param name="publish_debug_images" value="true" />
+        <param name="publish_tf_marker"   value="true" /> <!-- Publish cam -> marker TF -->
+        <param name="publish_tf_cam1_cam2" value="false" /> <!-- DO NOT publish cam1->cam2 from this instance -->
+        <param name="publish_viz_marker"  value="true" />
+        <!-- Remap debug topics to avoid conflicts -->
+        <remap from="cam1/aruco_result"   to="/cam1/aruco_result_m0" />
+        <remap from="cam2/aruco_result"   to="/cam2/aruco_result_m0" />
+        <remap from="debug_image_cam1"    to="/debug_image_cam1_m0" />
+        <remap from="debug_image_cam2"    to="/debug_image_cam2_m0" />
+        <remap from="visualization_marker" to="/visualization_marker_m0" />
+    </node>
+
+    <!-- === Node to Echo the Desired Transform === -->
+    <!-- This node will continuously print the transform from marker 0 (seen by cam1) to cam2_link -->
+    <node name="marker0_to_cam2_echoer" pkg="tf" type="tf_echo" 
+          args="aruco_marker_cam1_m0 cam2_link" output="screen"/>
+
+    <!-- === RViz Visualization === -->
+    <!-- You might want to create a specific RViz config for calibration -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/dual_camera_merge_optimized.rviz" required="false" /> 
+
+    <!-- 
+    =================================================================
+    == HOW TO GET THE TRANSFORM FROM MARKER 0 TO CAMERA 2 (D405) ==
+    =================================================================
+    After launching this file and ensuring both markers are detected correctly (check RViz and detector outputs):
+    1. Open a NEW terminal.
+    2. Source your catkin workspace: source ~/catkin_ws/devel/setup.bash
+    3. Run tf_echo to get the transform from marker 0 (seen by cam1) to the base frame of cam2:
+       rosrun tf tf_echo aruco_marker_cam1_m0 cam2_link
+    4. Copy the translation and rotation values printed by tf_echo. This is the pose of cam2_link relative to aruco_marker_cam1_m0. 
+       If you need the pose of the marker relative to the camera, run:
+       rosrun tf tf_echo cam2_link aruco_marker_cam1_m0
+    =================================================================
+    -->
+
+</launch>

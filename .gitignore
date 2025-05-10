@@ -1,7 +1,34 @@
+# Catkin workspace files
 build/
 devel/
-.catkin_workspace
-*.pyc
+logs/
+*.log
+
+# PCL build directory (if PCL is built in-place from catkin_ws/pcl/build)
+pcl/build/
+
+# Other common ignores
 *.swp
 *.swo
-*.user
+*~
+*.pyc
+*.orig
+
+# Archives
+*.zip
+*.tar.gz
+*.tgz
+
+# IDE specific
+.vscode/
+.idea/
+*.DS_Store
+
+# Specific files from workspace listing
+frames.pdf
+frames.gv # If generated, otherwise keep if it's a source
+# marker0_to_cam2_transform_alt.txt # Keep if important calibration output
+# marker0_to_cam2_transform.txt # Keep if important calibration output
+
+# Temp backup
+temp_backup/

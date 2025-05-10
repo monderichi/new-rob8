@@ -1,0 +1,138 @@
+<launch>
+    <!-- Arguments for camera serial numbers and marker details -->
+    <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i -->
+    <arg name="serial_no_cam2"    default="218622278356"/> <!-- D405 -->
+
+    <arg name="marker_size"       default="0.03"/> <!-- Marker size in meters (30mm = 0.03m) -->
+    <arg name="marker_id"         default="0"/>    <!-- Changed to ID 0 -->
+    <arg name="marker_dict"       default="DICT_4X4_50"/> <!-- 4x4 dictionary -->
+
+    <!-- Frame IDs -->
+    <arg name="world_frame"      default="aruco_marker_0"/> <!-- Changed world frame to the marker -->
+    <arg name="marker_frame"     default="aruco_marker_0"/> <!-- Define the single marker frame -->
+    <arg name="cam1_base_frame"   default="cam1_link"/>
+    <arg name="cam2_base_frame"   default="cam2_link"/>
+    <arg name="cam1_color_optical_frame" default="cam1_color_optical_frame"/>
+    <arg name="cam2_color_optical_frame" default="cam2_color_optical_frame"/>
+    <arg name="merged_topic" default="/merged_pointcloud"/>
+
+    <!-- Voxel Grid Filter Parameters - Optimized -->
+    <arg name="voxel_leaf_size"  default="0.01"/> <!-- Changed from 0.005 for performance -->
+
+    <!-- Performance optimization parameters -->
+    <!-- Set both cameras to 640x480 resolution -->
+    <arg name="color_width"       default="640"/>   <!-- Standard resolution for both cameras -->
+    <arg name="color_height"      default="480"/>   <!-- Standard resolution for both cameras -->
+    <arg name="depth_width"       default="640"/>   <!-- Standard resolution for both cameras -->
+    <arg name="depth_height"      default="480"/>   <!-- Standard resolution for both cameras -->
+    <arg name="color_fps"         default="15"/>    <!-- Frame rate -->
+    <arg name="depth_fps"         default="15"/>    <!-- Frame rate -->
+    
+    <arg name="filters"           default="pointcloud"/>
+    <arg name="pointcloud_texture_stream" default="RS2_STREAM_COLOR"/>
+    <arg name="pc_texture_index"  default="0"/>
+
+    <!-- === Camera 1 (D435i) === -->
+    <group ns="cam1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam1)"/>
+            <arg name="camera"              value="cam1"/>
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+            <arg name="color_width"         value="$(arg color_width)"/>
+            <arg name="color_height"        value="$(arg color_height)"/>
+            <arg name="depth_width"         value="$(arg depth_width)"/>
+            <arg name="depth_height"        value="$(arg depth_height)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+            <arg name="filters"             value="$(arg filters)"/>
+            <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/>
+            <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/>
+            <arg name="allow_no_texture_points" value="true"/>
+            <arg name="json_file_path" value=""/>
+        </include>
+    </group>
+
+    <!-- === Camera 2 (D405) === -->
+    <group ns="cam2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam2)"/>
+            <arg name="camera"              value="cam2"/>
+            <arg name="clip_distance"       value="0.5"/> <!-- Add this line -->
+            <arg name="enable_pointcloud"   value="true"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="true"/>
+            <arg name="color_width"         value="$(arg color_width)"/>
+            <arg name="color_height"        value="$(arg color_height)"/>
+            <arg name="depth_width"         value="$(arg depth_width)"/>
+            <arg name="depth_height"        value="$(arg depth_height)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+            <arg name="filters"             value="$(arg filters)"/>
+            <arg name="pointcloud_texture_stream" value="$(arg pointcloud_texture_stream)"/>
+            <arg name="pointcloud_texture_index"  value="$(arg pc_texture_index)"/>
+            <arg name="allow_no_texture_points" value="true"/>
+            <arg name="json_file_path" value=""/>
+       </include>
+    </group>
+
+    <!-- Single ArUco Detector for Cam1 -->
+    <node name="aruco_detector_cam1" pkg="realsense_aruco_merger" type="aruco_detector_ros.py" output="screen">
+        <param name="marker_size"         value="$(arg marker_size)"/>
+        <param name="marker_id"           value="$(arg marker_id)"/>
+        <param name="aruco_dictionary"    value="$(arg marker_dict)"/>
+        <param name="camera_frame"        value="$(arg cam1_color_optical_frame)"/>
+        <param name="marker_frame"        value="$(arg marker_frame)" />
+        <param name="camera_info_topic"   value="/cam1/cam1/color/camera_info" />
+        <param name="image_topic"         value="/cam1/cam1/color/image_raw" />
+        <param name="publish_tf"          value="true" />
+        <param name="publish_markers"     value="true" />
+        <param name="publish_image"       value="true" />
+        <remap from="aruco_pose"          to="/cam1/aruco_pose"/>
+        <remap from="aruco_markers"       to="/cam1/aruco_markers"/>
+        <remap from="aruco_image"         to="/cam1/aruco_image"/>
+    </node>
+
+    <!-- Static Transform Publisher for Cam2 relative to Marker 0 -->
+    <!-- Publishes the transform FROM marker_frame TO cam2_color_optical_frame -->
+    <!-- Args: x y z qx qy qz qw frame_id child_frame_id period_in_ms -->
+    <node pkg="tf" type="static_transform_publisher" name="marker0_to_cam2_tf_pub"
+          args="0.0 -0.00 -0.00 -0.021 0.999 -0.022 0.011 $(arg marker_frame) $(arg cam2_color_optical_frame) 100" />
+
+    <!-- Point Cloud Merger Node - Using C++ implementation with optimized parameters -->
+    <node name="aruco_pointcloud_merger" pkg="realsense_aruco_merger" type="aruco_pointcloud_merger_node" output="screen">
+        <param name="cam1_topic"         value="/cam1/cam1/depth/color/points"/>
+        <param name="cam2_topic"         value="/cam2/cam2/depth/color/points"/>
+        <param name="merged_topic"       value="$(arg merged_topic)"/>
+        <param name="target_frame"       value="$(arg world_frame)"/>
+        
+        <!-- Advanced filtering options for better performance -->
+        <param name="enable_voxel_filter" value="true"/>
+        <param name="voxel_leaf_size"    value="$(arg voxel_leaf_size)"/>
+        
+        <!-- Passthrough filter to limit point cloud volume (greatly improves performance) -->
+        <param name="enable_passthrough_filter" value="true"/>
+        <param name="passthrough_min_x"  value="-1.0"/>
+        <param name="passthrough_max_x"  value="1.0"/>
+        <param name="passthrough_min_y"  value="-1.0"/>
+        <param name="passthrough_max_y"  value="1.0"/>
+        <param name="passthrough_min_z"  value="0.0"/>
+        <param name="passthrough_max_z"  value="2.0"/>
+        
+        <!-- Statistical outlier removal for cleaner point clouds -->
+        <param name="enable_statistical_outlier_filter" value="false"/> <!-- Changed from true for performance -->
+        <param name="statistical_outlier_mean_k" value="30"/>
+        <param name="statistical_outlier_std_dev" value="1.0"/>
+        
+        <!-- Performance tuning -->
+        <param name="queue_size"         value="1"/> <!-- Only process latest cloud -->
+        <param name="use_approximate_sync" value="true"/> <!-- Use approximate time synchronization -->
+        <param name="sync_slop"          value="0.1"/> <!-- Synchronization tolerance (seconds) -->
+        <param name="thread_count"       value="4"/> <!-- Use multithreading if available in merger -->
+    </node>
+
+    <!-- === RViz Visualization === -->
+    <node name="rviz" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/dual_camera_merge_optimized.rviz" required="true" />
+
+</launch>

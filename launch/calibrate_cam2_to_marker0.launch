@@ -1,0 +1,123 @@
+<launch>
+    <!--
+    Launch file to calculate the static transform from aruco_marker_0 (seen only by cam1)
+    to cam2_color_optical_frame using aruco_marker_1 (seen by both cameras) as a bridge.
+    Assumes cam1 sees marker 0 AND marker 1, and cam2 sees marker 1 simultaneously.
+    -->
+
+    <!-- === Arguments === -->
+    <arg name="serial_no_cam1"    default="841612071768"/> <!-- D435i -->
+    <arg name="serial_no_cam2"    default="218622278356"/> <!-- D405 -->
+
+    <arg name="marker0_size"      default="0.03"/> <!-- Size of marker ID 0 in meters -->
+    <arg name="marker1_size"      default="0.03"/> <!-- Size of marker ID 1 in meters -->
+    <arg name="marker0_id"        default="0"/>
+    <arg name="marker1_id"        default="1"/>
+    <arg name="marker_dict"       default="DICT_4X4_50"/>
+
+    <!-- Output file for the calculated transform -->
+    <arg name="output_file"       default="$(find realsense_aruco_merger)/calibration/marker0_to_cam2_transform.yaml"/>
+
+    <!-- Camera performance args (adjust as needed) -->
+    <arg name="color_fps"         default="15"/>
+    <arg name="depth_fps"         default="15"/>
+    <arg name="enable_pointcloud" default="false"/> <!-- Pointclouds not needed for calibration -->
+    <arg name="align_depth"       default="true"/>
+
+    <!-- Frame names (using namespaced defaults) -->
+    <arg name="cam1_optical_frame" default="/cam1/cam1_color_optical_frame"/>
+    <arg name="cam2_optical_frame" default="/cam2/cam2_color_optical_frame"/>
+    <arg name="marker0_frame_name" default="aruco_marker_0"/>
+    <arg name="marker1_cam1_prefix" default="aruco_marker_1_cam1_"/>
+    <arg name="marker1_cam2_prefix" default="aruco_marker_1_cam2_"/>
+
+
+    <!-- === Camera 1 (D435i) === -->
+    <group ns="cam1">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam1)"/>
+            <arg name="camera"              value="cam1"/>
+            <arg name="tf_prefix"           value="cam1"/> <!-- Ensure TF prefix is set -->
+            <arg name="enable_pointcloud"   value="$(arg enable_pointcloud)"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="$(arg align_depth)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+        </include>
+    </group>
+
+    <!-- === Camera 2 (D405) === -->
+    <group ns="cam2">
+        <include file="$(find realsense2_camera)/launch/rs_camera.launch">
+            <arg name="serial_no"           value="$(arg serial_no_cam2)"/>
+            <arg name="camera"              value="cam2"/>
+            <arg name="tf_prefix"           value="cam2"/> <!-- Ensure TF prefix is set -->
+            <arg name="clip_distance"       value="0.5"/> <!-- Add this line -->
+            <arg name="enable_pointcloud"   value="$(arg enable_pointcloud)"/>
+            <arg name="enable_sync"         value="true"/>
+            <arg name="align_depth"         value="$(arg align_depth)"/>
+            <arg name="color_fps"           value="$(arg color_fps)"/>
+            <arg name="depth_fps"           value="$(arg depth_fps)"/>
+       </include>
+    </group>
+
+    <!-- === ArUco Detectors === -->
+
+    <!-- Detector: Cam1 -> Marker 0 -->
+    <node name="aruco_detector_cam1_m0" pkg="realsense_aruco_merger" type="aruco_detector_ros.py" output="screen">
+        <param name="marker_size"         value="$(arg marker0_size)"/>
+        <param name="marker_id"           value="$(arg marker0_id)"/>
+        <param name="aruco_dictionary"    value="$(arg marker_dict)"/>
+        <param name="camera_frame"        value="$(arg cam1_optical_frame)"/>
+        <param name="marker_frame"        value="$(arg marker0_frame_name)" /> <!-- Use specific name for ID 0 -->
+        <param name="camera_info_topic"   value="/cam1/cam1/color/camera_info" />
+        <param name="image_topic"         value="/cam1/cam1/color/image_raw" />
+        <param name="publish_tf"          value="true" />
+        <param name="publish_image"       value="true" /> <!-- Enable for debugging -->
+        <remap from="aruco_image"         to="/cam1/aruco_image_m0"/>
+    </node>
+
+    <!-- Detector: Cam1 -> Marker 1 -->
+    <node name="aruco_detector_cam1_m1" pkg="realsense_aruco_merger" type="aruco_detector_ros.py" output="screen">
+        <param name="marker_size"         value="$(arg marker1_size)"/>
+        <param name="marker_id"           value="$(arg marker1_id)"/>
+        <param name="aruco_dictionary"    value="$(arg marker_dict)"/>
+        <param name="camera_frame"        value="$(arg cam1_optical_frame)"/>
+        <param name="marker_frame_prefix" value="$(arg marker1_cam1_prefix)" /> <!-- Use prefix -->
+        <param name="camera_info_topic"   value="/cam1/cam1/color/camera_info" />
+        <param name="image_topic"         value="/cam1/cam1/color/image_raw" />
+        <param name="publish_tf"          value="true" />
+        <param name="publish_image"       value="true" /> <!-- Enable for debugging -->
+        <remap from="aruco_image"         to="/cam1/aruco_image_m1"/>
+    </node>
+
+    <!-- Detector: Cam2 -> Marker 1 -->
+    <node name="aruco_detector_cam2_m1" pkg="realsense_aruco_merger" type="aruco_detector_ros.py" output="screen">
+        <param name="marker_size"         value="$(arg marker1_size)"/>
+        <param name="marker_id"           value="$(arg marker1_id)"/>
+        <param name="aruco_dictionary"    value="$(arg marker_dict)"/>
+        <param name="camera_frame"        value="$(arg cam2_optical_frame)"/>
+        <param name="marker_frame_prefix" value="$(arg marker1_cam2_prefix)" /> <!-- Use prefix -->
+        <param name="camera_info_topic"   value="/cam2/cam2/color/camera_info" />
+        <param name="image_topic"         value="/cam2/cam2/color/image_raw" />
+        <param name="publish_tf"          value="true" />
+        <param name="publish_image"       value="true" /> <!-- Enable for debugging -->
+        <remap from="aruco_image"         to="/cam2/aruco_image_m1"/>
+    </node>
+
+    <!-- === Calibration Calculator Node === -->
+    <node name="calibration_calculator" pkg="realsense_aruco_merger" type="calibrate_cam2_via_markers.py" output="screen">
+        <param name="marker0_frame" value="$(arg marker0_frame_name)"/>
+        <param name="marker1_id" value="$(arg marker1_id)"/> <!-- Pass ID to construct frame names -->
+        <param name="marker1_cam1_frame" value="$(arg marker1_cam1_prefix)$(arg marker1_id)"/> <!-- Construct full frame name -->
+        <param name="marker1_cam2_frame" value="$(arg marker1_cam2_prefix)$(arg marker1_id)"/> <!-- Construct full frame name -->
+        <param name="cam1_optical_frame" value="$(arg cam1_optical_frame)"/>
+        <param name="cam2_optical_frame" value="$(arg cam2_optical_frame)"/>
+        <param name="output_file" value="$(arg output_file)"/>
+    </node>
+
+     <!-- === Optional RViz === -->
+     <!-- You might need to create/adjust calibration_debug.rviz -->
+     <node name="rviz_calibration" pkg="rviz" type="rviz" args="-d $(find realsense_aruco_merger)/rviz/calibration_debug.rviz" required="false" />
+
+</launch>

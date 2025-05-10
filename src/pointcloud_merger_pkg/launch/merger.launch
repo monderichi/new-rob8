@@ -1,0 +1,27 @@
+<launch>
+    <!-- Arguments for flexibility -->
+    <arg name="cam1_topic" default="/cam1/depth/color/points" />
+    <arg name="cam2_topic" default="/cam2/depth/color/points" />
+    <arg name="merged_topic" default="/merged_pointcloud" />
+    <arg name="target_frame" default="world" /> <!-- Or your desired fixed frame -->
+    <arg name="enable_voxel_filter" default="true" />
+    <arg name="voxel_leaf_size" default="0.03" />
+    <arg name="use_gpu" default="true" /> <!-- Set to true to enable GPU -->
+
+    <!-- Run the merger node -->
+    <node pkg="pointcloud_merger_pkg" type="aruco_pointcloud_merger_node" name="aruco_pointcloud_merger_node" output="screen">
+        <param name="cam1_topic" value="$(arg cam1_topic)"/>
+        <param name="cam2_topic" value="$(arg cam2_topic)"/>
+        <param name="merged_topic" value="$(arg merged_topic)"/>
+        <param name="target_frame" value="$(arg target_frame)"/>
+        <param name="enable_voxel_filter" value="$(arg enable_voxel_filter)"/>
+        <param name="voxel_leaf_size" value="$(arg voxel_leaf_size)"/>
+        <param name="use_gpu" value="$(arg use_gpu)"/>
+    </node>
+
+    <!-- Optional: Add static transforms if needed for testing -->
+    <!-- Example: If 'world' is your target and cam1_link is the cloud frame -->
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_cam1" args="0 0 0 0 0 0 world cam1_link" /> -->
+    <!-- <node pkg="tf2_ros" type="static_transform_publisher" name="world_to_cam2" args="1 0 0 0 0 0 world cam2_link" /> -->
+
+</launch>

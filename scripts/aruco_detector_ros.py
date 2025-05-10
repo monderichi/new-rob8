@@ -13,6 +13,7 @@ from std_msgs.msg import Header
 import tf2_ros
 import geometry_msgs.msg
 import tf.transformations
+from collections import deque  # Added for moving average
 
 class ArucoDetectorROS:
     def __init__(self):
@@ -59,8 +60,17 @@ class ArucoDetectorROS:
         self.pose_pub = rospy.Publisher('aruco_pose', PoseStamped, queue_size=1)
         self.marker_pub = rospy.Publisher('aruco_marker', Marker, queue_size=1)
         
+        # Rate limiting for aruco_result topic
+        self.result_publish_interval = rospy.Duration(10.0) # Publish every 10 seconds
+        self.last_result_publish_time = rospy.Time(0) # Initialize to zero
+
         # TF broadcaster
         self.tf_broadcaster = tf2_ros.TransformBroadcaster()
+
+        # Moving Average Filter parameters
+        self.pose_buffer_size = rospy.get_param('~pose_buffer_size', 5)  # Number of poses to average
+        self.tvec_buffer = deque(maxlen=self.pose_buffer_size)
+        self.quat_buffer = deque(maxlen=self.pose_buffer_size)
         
         # Subscribers - using the actual topics from your system
         self.camera_info_sub = rospy.Subscriber(self.camera_info_topic, CameraInfo, self.camera_info_callback)
@@ -71,6 +81,7 @@ class ArucoDetectorROS:
         rospy.loginfo(f"Marker size: {self.MARKER_SIZE} meters")
         rospy.loginfo(f"Subscribed to camera info: {self.camera_info_topic}")
         rospy.loginfo(f"Subscribed to image topic: {self.image_topic}")
+        rospy.loginfo(f"Using moving average filter with size {self.pose_buffer_size}")
         
     def camera_info_callback(self, msg):
         """Extract camera intrinsics from camera_info message"""
@@ -90,15 +101,21 @@ class ArucoDetectorROS:
             cv_image = self.bridge.imgmsg_to_cv2(msg, "bgr8")
             
             # Detect markers
-            markers_data = self.detect_aruco_marker(cv_image)
+            markers_data = self.detect_aruco_marker(cv_image)  # This now returns averaged data if available
             
-            # Draw results on image
-            result_image = self.display_marker_info(cv_image.copy(), markers_data)
-            
-            # Convert back to ROS image and publish
-            result_msg = self.bridge.cv2_to_imgmsg(result_image, "bgr8")
-            result_msg.header = msg.header
-            self.result_pub.publish(result_msg)
+            # Draw results on image (using the *latest* detected corners/IDs for drawing, not averaged)
+            gray = cv2.cvtColor(cv_image, cv2.COLOR_BGR2GRAY)
+            corners, ids, _ = self.detector.detectMarkers(gray)
+            display_image = self.display_marker_info(cv_image.copy(), corners, ids, markers_data)  # Pass raw corners/ids and averaged data
+
+            # --- Rate limit aruco_result publishing --- 
+            current_time = rospy.Time.now()
+            if (current_time - self.last_result_publish_time) >= self.result_publish_interval:
+                # Convert back to ROS image and publish
+                result_msg = self.bridge.cv2_to_imgmsg(display_image, "bgr8")
+                result_msg.header = msg.header
+                self.result_pub.publish(result_msg)
+                self.last_result_publish_time = current_time # Update last publish time
             
         except Exception as e:
             rospy.logerr(f"Error processing image: {e}")
@@ -114,9 +131,10 @@ class ArucoDetectorROS:
         markers_data = []
         
         if ids is not None:
-            # Filter for the specific marker ID we're looking for
-            for i, marker_id in enumerate(ids):
-                if marker_id[0] == self.marker_id:  # Only process the marker ID we're interested in
+            found_target_marker = False
+            for i, marker_id_detected in enumerate(ids):
+                if marker_id_detected[0] == self.marker_id:
+                    found_target_marker = True
                     marker_corners = corners[i][0]
                     
                     # Define 3D points of marker in marker coordinate system
@@ -137,38 +155,60 @@ class ArucoDetectorROS:
                     )
                     
                     if success:
-                        # Calculate marker center in pixels
-                        center_x = int(np.mean([corner[0] for corner in marker_corners]))
-                        center_y = int(np.mean([corner[1] for corner in marker_corners]))
-                        
                         # Get rotation matrix and quaternion
                         R, _ = cv2.Rodrigues(rvec)
                         rot_mat = np.eye(4)
                         rot_mat[:3, :3] = R
                         q = tf.transformations.quaternion_from_matrix(rot_mat)
-                        
+
+                        # --- Moving Average Filter ---
+                        self.tvec_buffer.append(tvec.flatten())
+                        self.quat_buffer.append(q)
+
+                        # Calculate average tvec
+                        avg_tvec = np.mean(np.array(self.tvec_buffer), axis=0)
+
+                        # Calculate average quaternion (simple component average + normalization)
+                        avg_quat_raw = np.mean(np.array(self.quat_buffer), axis=0)
+                        avg_quat_norm = np.linalg.norm(avg_quat_raw)
+                        if avg_quat_norm > 1e-6:  # Avoid division by zero
+                            avg_quat = avg_quat_raw / avg_quat_norm
+                        else:
+                            avg_quat = np.array([0.0, 0.0, 0.0, 1.0])  # Default to identity quaternion
+
+                        # Prepare data with averaged values
                         marker_data = {
-                            'id': marker_id[0],
-                            'pixel_coordinates': (center_x, center_y),
-                            'position_3d': (float(tvec[0][0]), float(tvec[1][0]), float(tvec[2][0])),
-                            'rotation_matrix': R,
-                            'rvec': rvec,
-                            'tvec': tvec,
-                            'quaternion': q
+                            'id': self.marker_id,  # Use the target ID
+                            'position_3d': tuple(avg_tvec),
+                            'quaternion': avg_quat,
+                            # Store raw rvec/tvec if needed for drawing or other purposes
+                            'raw_rvec': rvec,
+                            'raw_tvec': tvec
                         }
                         
-                        markers_data.append(marker_data)
+                        markers_data.append(marker_data)  # Append the averaged data
                         
-                        # Publish pose
+                        # Publish averaged pose, TF, and marker visualization
                         self.publish_pose(marker_data)
-                        
-                        # Publish TF
                         self.publish_tf(marker_data)
-                        
-                        # Publish marker visualization
                         self.publish_marker_visualization(marker_data)
+
+                        # Only process the first detected marker matching the ID
+                        break 
+            
+            # If the target marker was not found in this frame, clear the buffer
+            # to avoid using stale data when it reappears.
+            if not found_target_marker:
+                self.tvec_buffer.clear()
+                self.quat_buffer.clear()
+                rospy.logwarn_throttle(2.0, f"Target marker ID {self.marker_id} not detected. Clearing pose buffer.")
+
+        else:  # No markers detected at all
+            self.tvec_buffer.clear()
+            self.quat_buffer.clear()
+            rospy.logwarn_throttle(2.0, "No ArUco markers detected. Clearing pose buffer.")
         
-        return markers_data
+        return markers_data  # Return list containing the single averaged marker data (if found)
         
     def publish_pose(self, marker_data):
         """Publish pose of the detected marker"""
@@ -246,39 +286,60 @@ class ArucoDetectorROS:
         
         self.marker_pub.publish(marker)
         
-    def display_marker_info(self, color_image, markers_data):
-        """Draw detected markers and information on the image"""
-        if not markers_data:
+    def display_marker_info(self, color_image, corners, ids, averaged_markers_data):
+        """Draw detected markers and information on the image.
+           Uses raw corners/IDs for drawing axes/ID text, but displays averaged pose info.
+        """
+        if ids is None or len(ids) == 0:
             # Add text if no markers detected
             cv2.putText(color_image, "No marker detected", (10, 30), 
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
             return color_image
-            
-        for i, marker in enumerate(markers_data):
-            # Get marker ID and position
-            marker_id = marker['id']
-            center_x, center_y = marker['pixel_coordinates']
-            
-            # Draw circle at center
-            cv2.circle(color_image, (center_x, center_y), 3, (0, 255, 0), -1)
-            
-            # Draw coordinate axes
-            rvec = marker['rvec']
-            tvec = marker['tvec']
-            cv2.drawFrameAxes(color_image, self.camera_matrix, self.dist_coeffs, rvec, tvec, self.MARKER_SIZE/1.5)
-            
-            # Display information
-            text_pos_y = 30 + i * 80  # Offset each marker's info
-            cv2.putText(color_image, f"ID: {marker_id}", (10, text_pos_y), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-            
-            cv2.putText(color_image, f"Pos: ({marker['position_3d'][0]:.3f}, {marker['position_3d'][1]:.3f}, {marker['position_3d'][2]:.3f})m", 
-                       (10, text_pos_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-            
-            distance = np.sqrt(sum([x**2 for x in marker['position_3d']]))
-            cv2.putText(color_image, f"Dist: {distance:.3f}m", 
-                       (10, text_pos_y + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
-        
+
+        avg_data_map = {data['id']: data for data in averaged_markers_data}
+
+        for i, marker_id_detected in enumerate(ids):
+            marker_id = marker_id_detected[0]
+            if marker_id == self.marker_id:  # Only draw the target marker
+                marker_corners = corners[i][0]
+
+                # Calculate center from raw corners
+                center_x = int(np.mean([corner[0] for corner in marker_corners]))
+                center_y = int(np.mean([corner[1] for corner in marker_corners]))
+                cv2.circle(color_image, (center_x, center_y), 3, (0, 255, 0), -1)
+
+                # Use solvePnP again just to get rvec/tvec for drawing axes accurately for *this frame*
+                objPoints = np.array([
+                    [-self.MARKER_SIZE/2, self.MARKER_SIZE/2, 0],
+                    [self.MARKER_SIZE/2, self.MARKER_SIZE/2, 0],
+                    [self.MARKER_SIZE/2, -self.MARKER_SIZE/2, 0],
+                    [-self.MARKER_SIZE/2, -self.MARKER_SIZE/2, 0]
+                ], dtype=np.float32)
+                success, rvec_draw, tvec_draw = cv2.solvePnP(objPoints, marker_corners, self.camera_matrix, self.dist_coeffs, flags=cv2.SOLVEPNP_IPPE)
+
+                if success:
+                    cv2.drawFrameAxes(color_image, self.camera_matrix, self.dist_coeffs, rvec_draw, tvec_draw, self.MARKER_SIZE/1.5)
+
+                # Display info using averaged data if available
+                text_pos_y = 30
+                cv2.putText(color_image, f"ID: {marker_id} (Target)", (10, text_pos_y), 
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+
+                if marker_id in avg_data_map:
+                    avg_data = avg_data_map[marker_id]
+                    avg_pos = avg_data['position_3d']
+                    cv2.putText(color_image, f"Avg Pos: ({avg_pos[0]:.3f}, {avg_pos[1]:.3f}, {avg_pos[2]:.3f})m", 
+                               (10, text_pos_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+                    
+                    distance = np.sqrt(sum([x**2 for x in avg_pos]))
+                    cv2.putText(color_image, f"Avg Dist: {distance:.3f}m", 
+                               (10, text_pos_y + 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 1)
+                else:
+                    cv2.putText(color_image, "Averaged pose not available", 
+                               (10, text_pos_y + 30), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 100, 0), 1)
+                
+                break  # Only draw info for the first instance of the target marker
+
         return color_image
 
 def main():

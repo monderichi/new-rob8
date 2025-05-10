@@ -1,0 +1,4 @@
+Translation [x, y, z]: [0.087135, -0.300140, 0.360646] meters
+Rotation [x, y, z, w]: [-0.057413, -0.676250, -0.433412, 0.592912]
+Euler angles [roll, pitch, yaw]: [81.35, -58.39, -123.64] degrees
+Distance: 0.477223 meters

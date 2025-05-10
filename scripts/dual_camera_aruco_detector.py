@@ -13,6 +13,168 @@ from visualization_msgs.msg import Marker
 from std_msgs.msg import Header
 import tf.transformations
 import math
+import collections
+
+
+# Add filter classes for stabilizing ArUco marker detection
+class PoseFilter:
+    """Base class for pose filtering"""
+    def __init__(self):
+        pass
+    
+    def filter(self, position, quaternion):
+        """Filter the pose and return filtered position and quaternion"""
+        return position, quaternion
+
+
+class MovingAverageFilter(PoseFilter):
+    """Moving average filter for pose stabilization"""
+    def __init__(self, window_size=5):
+        super(MovingAverageFilter, self).__init__()
+        self.window_size = window_size
+        self.position_buffer = collections.deque(maxlen=window_size)
+        self.quaternion_buffer = collections.deque(maxlen=window_size)
+    
+    def filter(self, position, quaternion):
+        """Apply moving average filter to position and quaternion"""
+        if position is None or quaternion is None:
+            return None, None
+            
+        # Add current measurements to buffer
+        self.position_buffer.append(np.array(position))
+        self.quaternion_buffer.append(np.array(quaternion))
+        
+        # Calculate average position
+        if len(self.position_buffer) > 0:
+            avg_position = np.mean(np.array(self.position_buffer), axis=0)
+            
+            # For quaternions, we need to handle them differently due to their non-linearity
+            # Using the approach of averaging the rotation matrices and converting back to quaternion
+            if len(self.quaternion_buffer) > 0:
+                rotation_matrices = []
+                for q in self.quaternion_buffer:
+                    rotation_matrices.append(tf.transformations.quaternion_matrix(q)[:3, :3])
+                
+                avg_rotation_matrix = np.mean(np.array(rotation_matrices), axis=0)
+                
+                # Ensure the result is a valid rotation matrix
+                u, s, vh = np.linalg.svd(avg_rotation_matrix)
+                avg_rotation_matrix = u @ vh
+                
+                # Convert back to quaternion
+                rot_mat_4x4 = np.eye(4)
+                rot_mat_4x4[:3, :3] = avg_rotation_matrix
+                avg_quaternion = tf.transformations.quaternion_from_matrix(rot_mat_4x4)
+                
+                return avg_position, avg_quaternion
+                
+        return position, quaternion
+        
+
+class OutlierRejectionFilter(PoseFilter):
+    """Filter that rejects outlier poses based on distance threshold"""
+    def __init__(self, position_threshold=0.05, rotation_threshold=0.2, history_size=10):
+        super(OutlierRejectionFilter, self).__init__()
+        self.position_threshold = position_threshold  # meters
+        self.rotation_threshold = rotation_threshold  # radians
+        self.history_size = history_size
+        self.position_history = collections.deque(maxlen=history_size)
+        self.quaternion_history = collections.deque(maxlen=history_size)
+        self.last_valid_position = None
+        self.last_valid_quaternion = None
+    
+    def filter(self, position, quaternion):
+        """Reject outlier poses based on distance from median"""
+        if position is None or quaternion is None:
+            return self.last_valid_position, self.last_valid_quaternion
+            
+        # If we don't have enough history, accept the measurement
+        if len(self.position_history) < 3:
+            self.position_history.append(np.array(position))
+            self.quaternion_history.append(np.array(quaternion))
+            self.last_valid_position = position
+            self.last_valid_quaternion = quaternion
+            return position, quaternion
+        
+        # Calculate median position from history
+        median_position = np.median(np.array(self.position_history), axis=0)
+        
+        # Calculate distance from current position to median
+        distance = np.linalg.norm(np.array(position) - median_position)
+        
+        # For rotation, calculate the angle between current quaternion and previous quaternions
+        rotation_distances = []
+        for q in self.quaternion_history:
+            # Calculate the angle between quaternions
+            dot_product = np.abs(np.sum(q * quaternion))
+            # Clamp to valid range to avoid numerical errors
+            dot_product = min(max(dot_product, -1.0), 1.0)
+            angle = 2 * np.arccos(dot_product)
+            rotation_distances.append(angle)
+        
+        median_rotation_distance = np.median(rotation_distances)
+        
+        # Accept measurement if within thresholds
+        if distance <= self.position_threshold and median_rotation_distance <= self.rotation_threshold:
+            self.position_history.append(np.array(position))
+            self.quaternion_history.append(np.array(quaternion))
+            self.last_valid_position = position
+            self.last_valid_quaternion = quaternion
+            return position, quaternion
+        else:
+            rospy.logdebug(f"Rejected outlier: position_dist={distance:.4f}m, rotation_dist={median_rotation_distance:.4f}rad")
+            return self.last_valid_position, self.last_valid_quaternion
+
+
+class LowPassFilter(PoseFilter):
+    """Low-pass filter for smoothing pose data"""
+    def __init__(self, alpha=0.3):
+        super(LowPassFilter, self).__init__()
+        self.alpha = alpha  # Filter coefficient (0-1): lower values = more smoothing
+        self.prev_position = None
+        self.prev_quaternion = None
+    
+    def filter(self, position, quaternion):
+        """Apply low-pass filter: output = alpha * input + (1 - alpha) * prev_output"""
+        if position is None or quaternion is None:
+            return self.prev_position, self.prev_quaternion
+            
+        # Initialize if this is the first measurement
+        if self.prev_position is None:
+            self.prev_position = np.array(position)
+            self.prev_quaternion = np.array(quaternion)
+            return position, quaternion
+        
+        # Filter position with exponential smoothing
+        filtered_position = self.alpha * np.array(position) + (1 - self.alpha) * self.prev_position
+        self.prev_position = filtered_position
+        
+        # For orientation, we need to handle quaternions differently
+        # Use spherical linear interpolation (SLERP)
+        t = self.alpha  # Use alpha as the interpolation parameter
+        filtered_quaternion = tf.transformations.quaternion_slerp(
+            self.prev_quaternion, quaternion, t
+        )
+        self.prev_quaternion = filtered_quaternion
+        
+        return filtered_position, filtered_quaternion
+
+
+class CascadeFilter(PoseFilter):
+    """Combines multiple filters in a cascade"""
+    def __init__(self, filters):
+        super(CascadeFilter, self).__init__()
+        self.filters = filters
+    
+    def filter(self, position, quaternion):
+        """Apply all filters in sequence"""
+        current_position, current_quaternion = position, quaternion
+        
+        for filter_instance in self.filters:
+            current_position, current_quaternion = filter_instance.filter(current_position, current_quaternion)
+            
+        return current_position, current_quaternion
+
 
 class DualCameraArucoDetector:
     def __init__(self):
@@ -82,7 +244,43 @@ class DualCameraArucoDetector:
         # Flag to track if we have both camera intrinsics
         self.intrinsics_ready = False
         
+        # Initialize pose filters for both cameras
+        # Get filter parameters from ROS parameters
+        filter_mode = rospy.get_param('~filter_mode', 'cascade')  # 'cascade', 'moving_avg', 'outlier', 'lowpass'
+        ma_window_size = rospy.get_param('~ma_window_size', 5)
+        outlier_position_threshold = rospy.get_param('~outlier_position_threshold', 0.05)
+        outlier_rotation_threshold = rospy.get_param('~outlier_rotation_threshold', 0.2)
+        lowpass_alpha = rospy.get_param('~lowpass_alpha', 0.3)
+        
+        # Create the filters based on the mode
+        if filter_mode == 'cascade':
+            # Cascade filter: Outlier rejection -> Moving average -> Low-pass
+            self.cam1_filter = CascadeFilter([
+                OutlierRejectionFilter(outlier_position_threshold, outlier_rotation_threshold),
+                MovingAverageFilter(ma_window_size),
+                LowPassFilter(lowpass_alpha)
+            ])
+            self.cam2_filter = CascadeFilter([
+                OutlierRejectionFilter(outlier_position_threshold, outlier_rotation_threshold),
+                MovingAverageFilter(ma_window_size),
+                LowPassFilter(lowpass_alpha)
+            ])
+        elif filter_mode == 'moving_avg':
+            self.cam1_filter = MovingAverageFilter(ma_window_size)
+            self.cam2_filter = MovingAverageFilter(ma_window_size)
+        elif filter_mode == 'outlier':
+            self.cam1_filter = OutlierRejectionFilter(outlier_position_threshold, outlier_rotation_threshold)
+            self.cam2_filter = OutlierRejectionFilter(outlier_position_threshold, outlier_rotation_threshold)
+        elif filter_mode == 'lowpass':
+            self.cam1_filter = LowPassFilter(lowpass_alpha)
+            self.cam2_filter = LowPassFilter(lowpass_alpha)
+        else:
+            # Default to no filtering
+            self.cam1_filter = PoseFilter()
+            self.cam2_filter = PoseFilter()
+        
         rospy.loginfo("Dual camera ArUco detector initialized")
+        rospy.loginfo(f"Using filter mode: {filter_mode}")
         rospy.loginfo(f"Using 4x4 ArUco dictionary, looking for marker ID {self.marker_id}")
         rospy.loginfo(f"Marker size: {self.MARKER_SIZE} meters")
         
@@ -192,14 +390,20 @@ class DualCameraArucoDetector:
                         rot_mat[:3, :3] = R
                         q = tf.transformations.quaternion_from_matrix(rot_mat)
                         
+                        # Apply filtering to stabilize pose
+                        if is_cam1:
+                            filtered_position, filtered_quaternion = self.cam1_filter.filter((float(tvec[0][0]), float(tvec[1][0]), float(tvec[2][0])), q)
+                        else:
+                            filtered_position, filtered_quaternion = self.cam2_filter.filter((float(tvec[0][0]), float(tvec[1][0]), float(tvec[2][0])), q)
+                        
                         marker_data = {
                             'id': marker_id[0],
                             'pixel_coordinates': (center_x, center_y),
-                            'position_3d': (float(tvec[0][0]), float(tvec[1][0]), float(tvec[2][0])),
+                            'position_3d': filtered_position,
                             'rotation_matrix': R,
                             'rvec': rvec,
                             'tvec': tvec,
-                            'quaternion': q
+                            'quaternion': filtered_quaternion
                         }
                         
                         markers_data.append(marker_data)

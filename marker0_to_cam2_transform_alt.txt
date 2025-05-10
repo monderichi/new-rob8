@@ -1,0 +1,3 @@
+Translation [x, y, z]: [0.000955, -0.006996, -0.049126] meters
+Rotation [x, y, z, w]: [-0.416733, -0.533106, 0.554008, -0.484981]
+Distance: 0.049631 meters

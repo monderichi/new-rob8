@@ -1,0 +1,58 @@
+input_topic: "/camera/depth/color/points"
+output_topic: "/segmented_cloud"
+
+# Debug mode parameters
+debug_mode: false # if true, it will process each input message one by one, waiting for user input on the CLI
+queue_size: 166 # the number of input messages to be loaded and processed one by one
+publish_supervoxel_cloud: true # if true, it will publish the supervoxel cloud intermediate step
+supervoxel_cloud_topic: "/supervoxel_cloud" # topic to publish the supervoxel cloud
+centroid_marker_topic: "/centroid_markers" # topic to publish the centroid marker
+
+# Downsampling parameters
+voxel_leaf_size: 0.005 
+
+# Depth filter parameters - z-axis
+min_depth: 0.1
+max_depth: 5.0
+
+# LCCP segmentation parameters
+voxel_resolution: 0.01
+seed_resolution: 0.02
+color_importance: 0.1
+spatial_importance: 1.0
+normal_importance: 4.0
+use_supervoxel_refinement: true
+supervoxel_refinement_iterations: 3
+
+concavity_tolerance_threshold: 20.0
+k_factor: 0.0
+min_segment_size: 20
+use_smoothness_check: true
+smoothness_threshold: 1
+small_segment_threshold_percent: 1.0
+use_single_camera_transform: true
+
+# Planar segment filtering parameters
+filter_planar_segments: true          # Enable/disable the filter
+planar_distance_threshold: 0.015    # RANSAC distance threshold (meters)
+min_planar_inlier_percentage: 0.85  # Minimum percentage of inliers to classify as planar
+max_planar_segment_size: 2000       # Segments larger than this (in points) are checked for planarity
+
+publish_centroid_markers: true # if true, it will publish the centroid markers for the segmented objects
+# Filtered cloud visualization (post-planar filtering)
+publish_filtered_cloud: true        # if true, publish the cloud after planar filtering
+filtered_cloud_topic: "/filtered_segments_cloud" # topic for the filtered cloud
+
+
+# Primitive Fitting parameters
+publish_primitive_markers: true # if true, it will publish the fitted primitive markers
+publish_unselected_primitive_markers: false
+primitive_marker_topic: "/primitive_marker" # Topic for the fitted primitive visualization
+primitive_distance_threshold: 0.01          # RANSAC distance threshold for sphere/cylinder
+min_primitive_inlier_percentage: 0.70       # Min inlier % to consider RANSAC fit successful
+cylinder_normal_distance_weight: 0.01        # Weight for normals in cylinder RANSAC
+cylinder_min_radius: 0.01                   # Min radius for cylinder RANSAC (meters)
+cylinder_max_radius: 0.2                    # Max radius for cylinder RANSAC (meters)
+sphere_max_radius: 0.2                    # Max radius for sphere RANSAC (meters)
+box_max_size: 0.2                        # Max size for box RANSAC (meters)
+geometric_primitive_topic: "/geometric_primitive"  # Topic for publishing primitive data messages

@@ -1,0 +1,46 @@
+child_frame: cam2_depth_optical_frame
+distance_meters: !!python/object/apply:numpy.core.multiarray.scalar
+- &id001 !!python/object/apply:numpy.dtype
+  args:
+  - f8
+  - 0
+  - 1
+  state: !!python/tuple
+  - 3
+  - <
+  - null
+  - null
+  - null
+  - -1
+  - -1
+  - 0
+- !!binary |
+  44LeYOT8nD8=
+euler_degrees:
+  pitch: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    +hk3dmvXBkA=
+  roll: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    Lw0qMB2dd78=
+  yaw: !!python/object/apply:numpy.core.multiarray.scalar
+  - *id001
+  - !!binary |
+    dBadKkhbCEA=
+note: Averaged over 20 samples. Calculated with marker0 on back of camera2, Y-axis
+  rotation applied
+parent_frame: aruco_marker_0
+timestamp: 1746735498.2535746
+timestamp_ros: 1746735498.2535813
+transform:
+  rotation:
+    w: 0.9993367503382565
+    x: -0.0007121257457465079
+    y: 0.02490348636593106
+    z: 0.026558777590792084
+  translation:
+    x: 0.024306880119916278
+    y: -0.011850028016204096
+    z: 0.00837383675824065

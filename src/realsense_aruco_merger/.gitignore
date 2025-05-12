@@ -1,0 +1,15 @@
+build/
+build_isolated/
+devel/
+devel_isolated/
+install/
+install_isolated/
+.catkin_workspace
+.catkin_tools/
+logs/
+*.pyc
+*.swp
+*~
+.vscode/
+.idea/
+__pycache__/

@@ -1,6 +1,6 @@
-# RealSense ArUco-based Point Cloud Merging System ROS
+# RealSense ArUco-based Point Cloud Merging System
 
-This ROS  package enables the fusion of point clouds from two Intel RealSense depth cameras using ArUco markers for extrinsic calibration. The system dynamically calculates the transformation between cameras by detecting the same ArUco marker from both camera views, then merges the point clouds into a unified coordinate frame.
+This ROS package enables the fusion of point clouds from two Intel RealSense depth cameras using ArUco markers for extrinsic calibration. The system dynamically calculates the transformation between cameras by detecting the same ArUco marker from both camera views, then merges the point clouds into a unified coordinate frame.
 
 ## Features
 

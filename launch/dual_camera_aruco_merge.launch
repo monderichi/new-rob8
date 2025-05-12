@@ -17,7 +17,7 @@
     <arg name="merged_topic" default="/merged_pointcloud"/>
 
     <!-- Voxel Grid Filter Parameters - Optimized -->
-    <arg name="voxel_leaf_size"  default="0.01"/> <!-- Changed from 0.005 for performance -->
+    <arg name="voxel_leaf_size"  default="0.005"/> <!-- Balanced setting for quality vs. performance -->
 
     <!-- Performance optimization parameters -->
     <!-- Set both cameras to 640x480 resolution -->
@@ -121,7 +121,7 @@
         <param name="passthrough_max_z"  value="2.0"/>
         
         <!-- Statistical outlier removal for cleaner point clouds -->
-        <param name="enable_statistical_outlier_filter" value="false"/> <!-- Changed from true for performance -->
+        <param name="enable_statistical_outlier_filter" value="true"/>
         <param name="statistical_outlier_mean_k" value="30"/>
         <param name="statistical_outlier_std_dev" value="1.0"/>
         

@@ -1,0 +1,5 @@
+---
+uint8 NORMAL_OPERATION = 0
+uint8 PAUSED = 1
+
+uint8 mode

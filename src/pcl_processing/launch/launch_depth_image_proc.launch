@@ -1,0 +1,8 @@
+<launch>  <node pkg="nodelet" type="nodelet" name="nodelet_manager" args="manager" />  <node pkg="nodelet" type="nodelet" name="nodelet1"        args="load depth_image_proc/point_cloud_xyzrgb nodelet_manager">
+    <!-- <remap from="rgb/camera_info" to="/device_0/sensor_1/Color_0/info/camera_info"/> -->
+    <remap from="rgb/camera_info" to="/device_0/sensor_0/Depth_0/info/camera_info"/>
+    <remap from="rgb/image_rect_color" to="/device_0/sensor_1/Color_0/image/data"/>
+    <remap from="depth_registered/image_rect" to="/device_0/sensor_0/Depth_0/image/data"/>
+  </node>
+</launch>
+ 

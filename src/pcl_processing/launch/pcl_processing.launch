@@ -1,0 +1,21 @@
+<launch>
+  <!-- Define arguments for the config files -->
+  <arg name="base_config_file" default="$(find pcl_processing)/config/pcl_processing_params.yaml" />
+  <arg name="override_config_file" default="" doc="Optional: Path to config file with parameters that override the base config" />
+
+  <!-- Define the node name, allowing it to be overridden if needed -->
+  <arg name="node_name" default="pcl_processing_node" />
+
+  <!-- Load the base configuration file -->
+  <rosparam command="load" file="$(arg base_config_file)" ns="$(arg node_name)" />
+  
+  <!-- Conditionally load the override configuration file if provided -->
+  <group if="$(eval override_config_file != '')">
+    <rosparam command="load" file="$(arg override_config_file)" ns="$(arg node_name)" />
+    <node pkg="rostopic" type="rostopic" name="config_info" 
+          args="pub -1 /config_info std_msgs/String 'data: Loaded override config from $(arg override_config_file)'" />
+  </group>
+  
+  <!-- Start the processing node -->
+  <node pkg="pcl_processing" type="pcl_processing_node" name="$(arg node_name)" output="screen" />
+</launch>

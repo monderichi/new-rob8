@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+
+<launch>
+
+  <arg name="serial_port_num" default="0" doc="Number of /dev/ttyUSB serial
+        port to which Mia Hand is connected."/>
+  <arg name="serial_id" value="$(optenv HAND)" doc="Serial ID of the hand in
+        use."/>
+
+  <node name="mia" pkg="mia_hand_driver" type="mia_hand_driver_node"
+        required="true" output="screen">
+
+    <param name="serial_port_num" type="int" value="$(arg serial_port_num)"/>
+
+    <rosparam unless="$(eval serial_id == 'MNS8')" 
+              command="load" 
+              file="$(find mia_hand_bringup)/config/temp/force_sensors_map.yaml"/>
+
+    <rosparam if="$(eval serial_id == 'MNS8')" 
+              command="load" 
+              file="$(find mia_hand_bringup)/config/temp/force_sensors_map_MNS8.yaml"/>
+
+  </node>
+
+</launch>
